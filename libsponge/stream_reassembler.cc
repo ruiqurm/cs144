@@ -76,8 +76,9 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     #endif
     if (copy_size>0){
         // 新到的覆盖旧的
-        if(copy_start + copy_size > first_unassembled + capacity){
+        if( copy_start % capacity + copy_size  >= capacity){
             //需要分成两段复制
+            // printf("size1:%d\n",size1);
             int size1 = capacity - copy_start % capacity;
             int size2 = copy_size  - size1;
             memcpy(&_buffer[copy_start % capacity],data.c_str()+origin_start,size1);
