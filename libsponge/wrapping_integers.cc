@@ -9,13 +9,11 @@ template <typename... Targs>
 void DUMMY_CODE(Targs &&... /* unused */) {}
 
 using namespace std;
-
 //! Transform an "absolute" 64-bit sequence number (zero-indexed) into a WrappingInt32
 //! \param n The input absolute 64-bit sequence number
 //! \param isn The initial sequence number
 WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
-    DUMMY_CODE(n, isn);
-    return WrappingInt32{0};
+    return isn+n;//会被类型转换
 }
 
 //! Transform a WrappingInt32 into an "absolute" 64-bit sequence number (zero-indexed)
@@ -28,7 +26,14 @@ WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
 //! runs from the local TCPSender to the remote TCPReceiver and has one ISN,
 //! and the other stream runs from the remote TCPSender to the local TCPReceiver and
 //! has a different ISN.
+constexpr uint64_t HIGH32bit = 0xFFFFFFFF00000000;
 uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
-    DUMMY_CODE(n, isn, checkpoint);
-    return {};
+    auto ret = n - isn + (checkpoint & HIGH32bit);
+    auto another = static_cast<uint64_t>(ret)+(1UL<<32);// 另一个可能的位置
+    auto diff_ret = (checkpoint > ret)?checkpoint-ret:ret-checkpoint;
+    auto diff_another = (checkpoint > another)?checkpoint-another:another-checkpoint;
+    if(diff_another<diff_ret){
+        return another;
+    }
+    return ret;
 }
