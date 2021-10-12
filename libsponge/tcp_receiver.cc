@@ -27,6 +27,7 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
         ack = wrap(_reassembler.head_index()+1,isn);
         // cout<<"index"<<index<<"\n";
         // cout<<"ack"<<ack<<"\n";
+        // cout<<"ack"<<_reassembler.unassembled_bytes()<<"\n";
     }
 }
 
@@ -36,5 +37,5 @@ optional<WrappingInt32> TCPReceiver::ackno() const {
 }
 
 size_t TCPReceiver::window_size() const { 
-    return _capacity - _reassembler.unassembled_bytes();
+    return _reassembler.window();
 }

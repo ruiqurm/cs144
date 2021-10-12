@@ -59,6 +59,7 @@ class StreamReassembler {
     bool empty() const;
 
     size_t head_index() const { return first_unassembled; }
+    size_t window()const {return capacity-first_unassembled + _output.bytes_read();}
     bool input_ended() const { return _eof; }
 };
 
