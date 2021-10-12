@@ -17,7 +17,6 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
         valid = true;
         ack = wrap(1,isn);
         if(eof){
-            // auto index = unwrap(header.seqno,isn,_reassembler.head_index());
             _reassembler.push_substring("",0,eof);
             ack = wrap(2,isn);
         }
@@ -25,6 +24,7 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
         auto index = unwrap(header.seqno,isn,_reassembler.head_index())-1;
         _reassembler.push_substring(seg.payload().copy(),index,eof);
         ack = wrap(_reassembler.head_index()+1,isn);
+        ack = ack + (eof?1:0);
         // cout<<"index"<<index<<"\n";
         // cout<<"ack"<<ack<<"\n";
         // cout<<"ack"<<_reassembler.unassembled_bytes()<<"\n";
