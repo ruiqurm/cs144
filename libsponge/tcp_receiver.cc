@@ -4,7 +4,7 @@
 
 // For Lab 2, please replace with a real implementation that passes the
 // automated checks run by `make check_lab2`.
-
+#include<iostream>
 template <typename... Targs>
 void DUMMY_CODE(Targs &&... /* unused */) {}
 using namespace std;
@@ -17,14 +17,16 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
         valid = true;
         ack = wrap(1,isn);
         if(eof){
-            auto index = unwrap(header.seqno,isn,_reassembler.head_index());
-            _reassembler.push_substring("",index,eof);
+            // auto index = unwrap(header.seqno,isn,_reassembler.head_index());
+            _reassembler.push_substring("",0,eof);
             ack = wrap(2,isn);
         }
     }else{
-        auto index = unwrap(header.seqno,isn,_reassembler.head_index());
-        ack = wrap(_reassembler.head_index(),isn);
+        auto index = unwrap(header.seqno,isn,_reassembler.head_index())-1;
         _reassembler.push_substring(seg.payload().copy(),index,eof);
+        ack = wrap(_reassembler.head_index()+1,isn);
+        // cout<<"index"<<index<<"\n";
+        // cout<<"ack"<<ack<<"\n";
     }
 }
 
