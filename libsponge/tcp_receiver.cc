@@ -11,24 +11,16 @@ using namespace std;
 
 void TCPReceiver::segment_received(const TCPSegment &seg) {
     auto& header = seg.header();
-    bool eof = header.fin;
     if(header.syn){
         isn = header.seqno;
         valid = true;
-        ack = wrap(1,isn);
-        if(eof){
-            _reassembler.push_substring("",0,eof);
-            ack = wrap(2,isn);
-        }
-    }else{
-        auto index = unwrap(header.seqno,isn,_reassembler.head_index())-1;
-        _reassembler.push_substring(seg.payload().copy(),index,eof);
-        ack = wrap(_reassembler.head_index()+1,isn);
-        ack = ack + (eof?1:0);
-        // cout<<"index"<<index<<"\n";
-        // cout<<"ack"<<ack<<"\n";
-        // cout<<"ack"<<_reassembler.unassembled_bytes()<<"\n";
     }
+    auto index = header.syn? 0:unwrap(header.seqno,isn,_reassembler.head_index())-1;
+    _reassembler.push_substring(seg.payload().copy(),index,header.fin);
+    ack = wrap(_reassembler.head_index()+1,isn);
+    ack = ack + (_reassembler.input_ended()?1:0);
+    cout<<"ack"<<ack<<"\n";
+    // cout<<"ack"<<_reassembler.unassembled_bytes()<<"\n";
 }
 
 optional<WrappingInt32> TCPReceiver::ackno() const {

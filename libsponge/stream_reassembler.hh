@@ -60,7 +60,7 @@ class StreamReassembler {
 
     size_t head_index() const { return first_unassembled; }
     size_t window()const {return capacity-first_unassembled + _output.bytes_read();}
-    bool input_ended() const { return _eof; }
+    bool input_ended() const { return  _output.input_ended();}
 };
 
 #endif  // SPONGE_LIBSPONGE_STREAM_REASSEMBLER_HH
