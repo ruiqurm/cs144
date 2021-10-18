@@ -31,7 +31,21 @@ class TCPSender {
 
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
+    uint16_t _receiver_window;
 
+    
+    unsigned int timer;
+    WrappingInt32 alarm_absolute_ackno;
+    unsigned int rto;
+
+    //! set up a timer for ack no;
+    void setup_timer(WrappingInt32 expected_absolute_ackno){
+      alarm_absolute_ackno = expected_absolute_ackno;
+      timer = 0;
+    }
+
+    //! stop the all timer
+    void stop_timer();
   public:
     //! Initialize a TCPSender
     TCPSender(const size_t capacity = TCPConfig::DEFAULT_CAPACITY,
