@@ -1,8 +1,7 @@
 #ifndef SPONGE_LIBSPONGE_TCP_RETRANSMISSION_TIMER_HH
 #define SPONGE_LIBSPONGE_TCP_RETRANSMISSION_TIMER_HH
 #include "wrapping_integers.hh"
-
-#include <memory>
+#include "buffer.hh"
 
 using namespace std;
 
@@ -15,9 +14,10 @@ class TCPRetransmissionTimer {
     bool _is_valid;
     bool _is_expired;
     uint8_t _retransmissions_times;
-    // WrappingInt32 tracked_ackno; //unused
-    shared_ptr<Buffer> _buf;
+    string _buf;
     bool _is_eof;
+    uint64_t _seqno; 
+
 
   public:
     TCPRetransmissionTimer(uint32_t initrto)
@@ -27,21 +27,32 @@ class TCPRetransmissionTimer {
         , _is_valid(false)
         , _is_expired(false)
         , _retransmissions_times(0)
-        , _buf(nullptr)
-        , _is_eof(false) {}
-    void start_timer(string &&s, bool is_eof) {
+        , _buf {}
+        , _is_eof(false)
+        , _seqno(0){}
+    void start_timer(uint64_t seq,string &s, bool is_eof) {
         _timer = 0;
         _is_valid = true;
         _is_expired = false;
         _rto = _init_rto;
         _retransmissions_times = 0;
-        _buf = make_shared<Buffer>(std::forward<string>(s));
+        _buf = s;
         _is_eof = is_eof;
+        _seqno = seq;
     }
-
+    //! for empty
+    void start_timer(uint64_t seq) {
+        _timer = 0;
+        _is_valid = true;
+        _is_expired = false;
+        _rto = _init_rto;
+        _retransmissions_times = 0;
+        _is_eof = false;
+        _seqno = seq;
+    }
     void stop_timer() {
         _is_valid = false;
-        _buf.reset();
+        _buf.clear();
     }
 
     //! return false if the _timer is stop
@@ -70,7 +81,8 @@ class TCPRetransmissionTimer {
     }
     unsigned int get_retransmissions_times() const { return _retransmissions_times; }
 
-    Buffer &get_buf() const { return *_buf; }
+    uint64_t get_seq() const { return _seqno; }
+    const string &get_buf() const { return _buf; }
     bool get_eof() const { return _is_eof; }
 };
 #endif
