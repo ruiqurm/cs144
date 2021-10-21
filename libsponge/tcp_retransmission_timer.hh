@@ -9,8 +9,8 @@ using namespace std;
 class TCPRetransmissionTimer {
   private:
     uint32_t _timer {0};
-    uint32_t _init_rto;
-    uint32_t _rto;
+    inline static uint32_t _init_rto {0};
+    inline static uint32_t _rto {0};
     bool _is_valid {false};
     bool _is_expired {false};
     string _buf {};
@@ -20,17 +20,13 @@ class TCPRetransmissionTimer {
 
 
   public:
-    TCPRetransmissionTimer(uint32_t initrto)
-        : _init_rto(initrto)
-        , _rto(initrto){}
-    TCPRetransmissionTimer():TCPRetransmissionTimer(1000){}
+    TCPRetransmissionTimer(){}
 
     //! for empty
     void start_timer(uint64_t seq) {
         _timer = 0;
         _is_valid = true;
         _is_expired = false;
-        _rto = _init_rto;
         _seqno = seq;
     }
     void set_str(const string &str){
@@ -74,5 +70,11 @@ class TCPRetransmissionTimer {
     void set_syn() { _is_syn = true; }
     bool is_eof() const { return _is_eof; }
     bool is_syn() const { return _is_syn; }
+    void reset_timer() { _timer = 0; }
+
+    //! static method 
+
+    static void init_rto(uint32_t rto) { _rto = _init_rto = rto;}
+    static void reset_rto() { _rto = _init_rto; }
 };
 #endif

@@ -39,7 +39,7 @@ class TCPSender {
     uint64_t _bytes_in_flight{0};
     bool sended_eof {false};
     uint32_t _retransmission_times {0};
-    uint32_t last_retransmission_seq {0xffffffff};
+    bool _is_syn {false};
   public:
     //! Initialize a TCPSender
     TCPSender(const size_t capacity = TCPConfig::DEFAULT_CAPACITY,
