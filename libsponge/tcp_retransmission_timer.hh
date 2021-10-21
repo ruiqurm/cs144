@@ -30,6 +30,7 @@ class TCPRetransmissionTimer {
         , _buf {}
         , _is_eof(false)
         , _seqno(0){}
+    TCPRetransmissionTimer():TCPRetransmissionTimer(1000){}
     void start_timer(uint64_t seq,string &s, bool is_eof) {
         _timer = 0;
         _is_valid = true;

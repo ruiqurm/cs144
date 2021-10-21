@@ -8,7 +8,8 @@
 #include "tcp_retransmission_timer.hh"
 #include <functional>
 #include <queue>
-
+#include <map>
+#include <list>
 //! \brief The "sender" part of a TCP implementation.
 
 //! Accepts a ByteStream, divides it up into segments and sends the
@@ -31,9 +32,11 @@ class TCPSender {
 
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
+    uint64_t _first_unacked {0};
     uint16_t _receiver_window;
 
-    TCPRetransmissionTimer _timer;
+    list<TCPRetransmissionTimer> _timers;
+    uint64_t _bytes_in_flight{0};
     //! stop the all timer
   public:
     //! Initialize a TCPSender
