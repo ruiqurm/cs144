@@ -22,7 +22,8 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
     , _initial_retransmission_timeout{retx_timeout}
     , _stream(capacity)
     , _receiver_window(65535)
-    , _timers {}{}
+    , _timers {}
+    , _retransmission_times{0}{}
 
 uint64_t TCPSender::bytes_in_flight() const { 
     return _bytes_in_flight; 
@@ -45,7 +46,9 @@ void TCPSender::fill_window() {
         _timers.emplace_back(_initial_retransmission_timeout);
 
         // last timer start
-        _timers.back().start_timer(_next_seqno, str, back.header().fin);
+        _timers.back().start_timer(_next_seqno);
+        _timers.back().set_str(str);
+        if(back.header().fin)_timers.back().set_eof();
 
         // set up payload
         back.payload() = string(str);
@@ -62,6 +65,7 @@ void TCPSender::fill_window() {
         back.header().seqno = wrap(0, _isn);
         _timers.emplace_back(_initial_retransmission_timeout);
         _timers.back().start_timer(0);
+        _timers.back().set_syn();
         _next_seqno =  1;
         _bytes_in_flight += 1;
     }
@@ -77,7 +81,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     auto timer = _timers.begin();
     while(timer != _timers.end()){
         auto seg_start = timer->get_seq();
-        auto size = timer->get_buf().size() + static_cast<int>(timer->get_eof());
+        auto size = timer->get_buf().size() + static_cast<int>(timer->is_eof());
         auto seg_end = seg_start + size;
         if(recv_seq < seg_end){
             // if(){
@@ -102,18 +106,26 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
         i.increase_tick(ms_since_last_tick);
         if (first_expired && i.is_expired()) {
             first_expired = false;
+            if(last_retransmission_seq == (i.get_seq()&0xffffffff)){
+                _retransmission_times++;
+            }else{
+                last_retransmission_seq = (i.get_seq()&0xffffffff);
+                _retransmission_times = 1;
+            }
+            
             _segments_out.emplace();
             auto &back = _segments_out.back();
             back.header().seqno = wrap(i.get_seq(), _isn);
             back.payload() = string(i.get_buf());
-            back.header().fin = i.get_eof();
+            back.header().fin = i.is_eof();
+            back.header().syn = i.is_syn();
             i.restart_timer();
         }
     }
 
 }
 
-unsigned int TCPSender::consecutive_retransmissions() const { return 0; }
+unsigned int TCPSender::consecutive_retransmissions() const { return _retransmission_times; }
 
 void TCPSender::send_empty_segment() {
     _segments_out.emplace();
