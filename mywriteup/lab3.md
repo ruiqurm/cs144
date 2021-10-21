@@ -47,3 +47,13 @@ seg.payload() = std::string(data); // data也是string类型
 
 ### bytes_in_flight
 这里我做了一个条件判断，如果时钟正在运行，则返回next_seq减去上一次seq；否则，返回一个0
+
+
+# send_transmit
+* 时钟要有多个
+* ack要一次消除多个时钟
+* 用链表
+
+# send_window
+* 窗口每次都要更新，不能有效才更新
+* FIN也占窗口，如果窗口已满，要下次传

@@ -37,6 +37,7 @@ class TCPSender {
 
     list<TCPRetransmissionTimer> _timers;
     uint64_t _bytes_in_flight{0};
+    bool sended_eof {false};
     //! stop the all timer
   public:
     //! Initialize a TCPSender

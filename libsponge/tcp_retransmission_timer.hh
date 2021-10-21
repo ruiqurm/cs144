@@ -60,7 +60,7 @@ class TCPRetransmissionTimer {
     void increase_tick(uint32_t tick) {
         if (_is_valid) {
             _timer += tick;
-            if (tick >= _rto) {
+            if (_timer >= _rto) {
                 _is_expired = true;
                 _is_valid = false;
                 _rto *= 2;
