@@ -57,3 +57,8 @@ seg.payload() = std::string(data); // data也是string类型
 # send_window
 * 窗口每次都要更新，不能有效才更新
 * FIN也占窗口，如果窗口已满，要下次传
+
+# extra
+* MAX_PAYLOAD_SIZE limits payload only
+* fill_window() correctly fills a big window
+* When filling window, treat

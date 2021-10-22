@@ -4,6 +4,7 @@
 
 #include <random>
 #include <algorithm>
+#include<cmath>
 // Dummy implementation of a TCP sender
 
 // For Lab 3, please replace with a real implementation that passes the
@@ -37,21 +38,37 @@ void TCPSender::fill_window() {
             return;
         if ( (_stream.buffer_empty() && !_stream.eof()) || (_stream.eof() && sended_eof) )
             return;//nothing to send
+        decltype(_bytes_in_flight) receiver_window = (_receiver_window==0)?1:_receiver_window;
+        auto current_window = (receiver_window > _bytes_in_flight)?receiver_window - _bytes_in_flight:0;
         
-        auto max_allow_sending_data_count = (_receiver_window > _bytes_in_flight)?_receiver_window - _bytes_in_flight:0;
-        if(max_allow_sending_data_count==0)
-                    return;
-        max_allow_sending_data_count = min(max_allow_sending_data_count,_stream.buffer_size()+static_cast<int>(_stream.input_ended()));
-        auto max_sender_window = static_cast<uint16_t>(TCPConfig::MAX_PAYLOAD_SIZE);
-        auto number_of_segment = static_cast<int>(max_allow_sending_data_count / max_sender_window + 1);
-        for(int _=0;_<number_of_segment;_++){
-            auto size_of_segment = (max_allow_sending_data_count <= max_sender_window)?max_allow_sending_data_count:max_sender_window;
+        // if the window is full,or there is no more input string,then return
+        if(current_window==0)return; 
+
+        // how many window actually need?
+        auto number_of_window_need = _stream.buffer_size();
+        auto number_of_window_need_include_fin = number_of_window_need+static_cast<int>(_stream.input_ended());
+
+        // the maximum size of a segment 
+        auto max_sender_window = static_cast<uint16_t>(TCPConfig::MAX_PAYLOAD_SIZE); 
+        // can/should this time send with a fin flag?
+        bool can_carry_fin = current_window >= number_of_window_need_include_fin;
+        auto number_of_window_used = min(current_window,number_of_window_need);
+
+        int number_of_segment = static_cast<int>(number_of_window_used==0?1:ceil(static_cast<double>(number_of_window_used) / max_sender_window));
+        for(int i=0;i<number_of_segment;i++){
+            auto size_of_segment = (number_of_window_used <= max_sender_window)?number_of_window_used:max_sender_window;
             _segments_out.emplace();
             auto &back = _segments_out.back();
             back.header().syn = _next_seqno == 0;  // if  _next_seqno==0,syn = true;
             back.header().seqno = wrap(_next_seqno, _isn);
             auto str = _stream.read(size_of_segment);
-            back.header().fin = _stream.eof()  && size_of_segment >= str.size()+1;
+            if (i==number_of_segment - 1){// last segment may be the final segment
+                // if size_of_segment==TCPConfig::MAX_PAYLOAD_SIZE
+                // back.header().fin = _stream.eof(), because MAX_PAYLOAD_SIZE limits payload only
+                // else back.header().fin = _stream.eof() && size_of_segment >= str.size()+1;
+                bool a = (size_of_segment==TCPConfig::MAX_PAYLOAD_SIZE);
+                back.header().fin = _stream.eof() && (a? true : can_carry_fin);
+            }
             _timers.emplace_back();
 
             // last timer start
@@ -68,7 +85,7 @@ void TCPSender::fill_window() {
             _next_seqno += increment;
             sended_eof = back.header().fin;
 
-            max_allow_sending_data_count -= max_sender_window;
+            number_of_window_used -= max_sender_window;
         }
     } else {
         _segments_out.emplace();
@@ -89,7 +106,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     auto recv_seq = unwrap(ackno, _isn, _next_seqno);
     // if not in valid range,abort
     // 确认是哪个片段接到了
-    _receiver_window = window_size == 0 ? 1 : window_size;
+    _receiver_window = window_size;
     auto timer = _timers.begin();
     bool is_new_data = false;
     while(timer != _timers.end()){
@@ -140,7 +157,7 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
             back.payload() = string(i.get_buf());
             back.header().fin = i.is_eof();
             back.header().syn = i.is_syn();
-            i.restart_timer();
+            i.restart_timer(_receiver_window!=0);
         }
     }
 

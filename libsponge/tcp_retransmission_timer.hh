@@ -57,11 +57,11 @@ class TCPRetransmissionTimer {
     //! check if the _timer is expired
     bool is_expired() const { return _is_expired; }
 
-    void restart_timer() {
+    void restart_timer(bool double_rto=true) {
         _timer = 0;
         _is_valid = true;
         _is_expired = false;
-        _rto *= 2;
+        _rto = double_rto?2*_rto:_rto;
     }
 
     uint64_t get_seq() const { return _seqno; }
