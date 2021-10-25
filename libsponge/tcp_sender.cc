@@ -109,9 +109,13 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     _receiver_window = window_size;
     auto timer = _timers.begin();
     bool is_new_data = false;
+    if(_timers.empty())return;
+    auto back = _timers.back();
+    auto max_ack = back.get_seq()+back.get_buf().size() +  static_cast<int>(back.is_eof()) + static_cast<int>(back.is_syn());
+    if(recv_seq>max_ack)return;
     while(timer != _timers.end()){
         auto seg_start = timer->get_seq();
-        auto size = timer->get_buf().size() + static_cast<int>(timer->is_eof());
+        auto size = timer->get_buf().size() + static_cast<int>(timer->is_eof()) + static_cast<int>(timer->is_syn());
         auto seg_end = seg_start + size;
         if(recv_seq < seg_end){
             // if(){
@@ -126,11 +130,11 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         _bytes_in_flight -= (recv_seq==1)?1:size;
         timer->stop_timer();
         timer = _timers.erase(timer);
-        _retransmission_times = 0;
         // 不需要自增
         // cout<<"byte: "<<_bytes_in_flight<<" seq: "<<_next_seqno<<" eof"<<_stream.eof()<<" writen"<<_stream.bytes_written()<<endl;
     }
     if(is_new_data){
+        _retransmission_times = 0;
         for(auto&i:_timers){
             i.reset_timer();
         }
@@ -142,10 +146,6 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 void TCPSender::tick(const size_t ms_since_last_tick) {
     auto first_expired = true;
     for(auto&i:_timers){
-        if(!first_expired){
-            i.reset_timer();
-            continue;
-        }
         i.increase_tick(ms_since_last_tick);
         if (first_expired && i.is_expired()) {
             first_expired = false;
@@ -160,7 +160,11 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
             i.restart_timer(_receiver_window!=0);
         }
     }
-
+    if(!first_expired){
+        for(auto&i:_timers){
+            i.reset_timer();
+        }
+    }
 }
 
 unsigned int TCPSender::consecutive_retransmissions() const { return _retransmission_times; }
