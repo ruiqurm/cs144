@@ -20,7 +20,8 @@ class TCPSender {
   private:
     //! our initial sequence number, the number for our SYN.
     WrappingInt32 _isn;
-
+    WrappingInt32 _ack{0};
+    uint16_t  _win {0};
     //! outbound queue of segments that the TCPSender wants sent
     std::queue<TCPSegment> _segments_out{};
 
@@ -40,6 +41,7 @@ class TCPSender {
     bool sended_eof {false};
     uint32_t _retransmission_times {0};
     bool _is_syn {false};
+    bool _valid {true};
   public:
     //! Initialize a TCPSender
     TCPSender(const size_t capacity = TCPConfig::DEFAULT_CAPACITY,
@@ -95,6 +97,13 @@ class TCPSender {
     //! \brief relative seqno for the next byte to be sent
     WrappingInt32 next_seqno() const { return wrap(_next_seqno, _isn); }
     //!@}
+
+    //! \brief update the ack no
+    void set_ack_win(WrappingInt32 ack,uint16_t win){ _ack = ack;_win=win;}
+
+//    //! \brief abort then
+//    void abort(){_valid = false;}
+
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_SENDER_HH

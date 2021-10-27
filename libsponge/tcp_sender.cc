@@ -61,6 +61,9 @@ void TCPSender::fill_window() {
             auto &back = _segments_out.back();
             back.header().syn = _next_seqno == 0;  // if  _next_seqno==0,syn = true;
             back.header().seqno = wrap(_next_seqno, _isn);
+            back.header().ackno = _ack;
+            back.header().win   = _win;
+
             auto str = _stream.read(size_of_segment);
             if (i==number_of_segment - 1){// last segment may be the final segment
                 // if size_of_segment==TCPConfig::MAX_PAYLOAD_SIZE
@@ -157,6 +160,10 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
             back.payload() = string(i.get_buf());
             back.header().fin = i.is_eof();
             back.header().syn = i.is_syn();
+            if(!i.is_syn()) {
+                back.header().ackno = _ack;
+                back.header().win = _win;
+            }
             i.restart_timer(_receiver_window!=0);
         }
     }
@@ -170,9 +177,11 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
 unsigned int TCPSender::consecutive_retransmissions() const { return _retransmission_times; }
 
 void TCPSender::send_empty_segment() {
-    // _segments_out.emplace();
-    // auto &back = _segments_out.back();
-    // back.header().seqno = wrap(_next_seqno, _isn);
-    // _timers.emplace_back(_initial_retransmission_timeout);
-    // _timers.back().start_timer(_next_seqno);
+     _segments_out.emplace();
+     auto &back = _segments_out.back();
+     back.header().seqno = _isn;//invalid seq
+     back.header().ackno = _ack;
+     back.header().win   = _win;
+     _timers.emplace_back();
+     _timers.back().start_timer(_next_seqno);
 }
