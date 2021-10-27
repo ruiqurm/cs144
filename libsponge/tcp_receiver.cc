@@ -19,7 +19,7 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     _reassembler.push_substring(seg.payload().copy(),index,header.fin);
     ack = wrap(_reassembler.head_index()+1,isn);
     ack = ack + (_reassembler.input_ended()?1:0);
-    cout<<"ack"<<ack<<"\n";
+//    cout<<"ack"<<ack<<"\n";
     // cout<<"ack"<<_reassembler.unassembled_bytes()<<"\n";
 }
 
