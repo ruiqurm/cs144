@@ -13,7 +13,7 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 using namespace std;
 
 size_t TCPConnection::remaining_outbound_capacity() const { 
-    return _cfg.send_capacity - _sender.bytes_in_flight();
+    return _sender.remaining_outbound_capacity();
 }
 
 size_t TCPConnection::bytes_in_flight() const {
@@ -31,8 +31,6 @@ size_t TCPConnection::time_since_last_segment_received() const {
 void TCPConnection::segment_received(const TCPSegment &seg) {
     // if this is a keep-alive segement
     if(seg.header().rst){
-        //! rst have been set
-        //!
         _sender.stream_in().set_error();
         _receiver.stream_out().set_error();
         _active = false;
@@ -43,16 +41,13 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         _sender.send_empty_segment();
     }else {
         _receiver.segment_received(seg);  // receiver from sender;update ack no
-        if (seg.header().ack) {
-            _sender.ack_received(seg.header().ackno, seg.header().win);
-        } else {
-            // SYN
-        }
     }
+    _sender.ack_received(seg.header().ackno,seg.header().win);
     _time_since_last_segment_received = 0;
-    // TODO:设定一个时间，超时则返回报文
     _sender.fill_window(); // piggybacking
-    _sender.segments_out().
+    if(_sender.stream_in().eof() && _sender.bytes_in_flight()==0 && _receiver.stream_out().eof()){
+        _active = false;
+    }
 }
 
 bool TCPConnection::active() const {
@@ -69,8 +64,18 @@ size_t TCPConnection::write(const string &data) {
 void TCPConnection::tick(const size_t ms_since_last_tick) {
     _sender.tick(ms_since_last_tick);
     _time_since_last_segment_received += ms_since_last_tick;
-    if(_sender.stream_in().eof() && _sender.bytes_in_flight()==0){
+    if(_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS){
+        _sender.send_empty_segment();
+        _sender.segments_out().front().header().rst = true;
+        _active = false;
+    }
+    if(_sender.stream_in().eof() && _sender.bytes_in_flight()==0 && _receiver.stream_out().eof()){
+        _linger_after_streams_finish = true;
+    }
+    if(_linger_after_streams_finish && _time_since_last_segment_received>= 10 * _cfg.rt_timeout){
         // option A
+        _active = false;
+        return;
     }
 }
 
@@ -91,6 +96,7 @@ TCPConnection::~TCPConnection() {
             // Your code here: need to send a RST segment to the peer
             _sender.send_empty_segment();
             _sender.segments_out().front().header().rst = true;
+            _active = false;
         }
     } catch (const exception &e) {
         std::cerr << "Exception destructing TCP FSM: " << e.what() << std::endl;

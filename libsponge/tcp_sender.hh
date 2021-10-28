@@ -98,8 +98,10 @@ class TCPSender {
     WrappingInt32 next_seqno() const { return wrap(_next_seqno, _isn); }
     //!@}
 
-    //! \brief update the ack no
-    void set_ack_win(WrappingInt32 ack,uint16_t win){ _ack = ack;_win=win;}
+    uint16_t remaining_outbound_capacity() const{
+        unsigned long receiver_window = (_receiver_window==0)?1:_receiver_window;
+        return (receiver_window > _bytes_in_flight)?receiver_window - _bytes_in_flight:0;
+    }
 
 //    //! \brief abort then
 //    void abort(){_valid = false;}

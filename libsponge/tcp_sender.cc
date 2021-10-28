@@ -61,7 +61,8 @@ void TCPSender::fill_window() {
             auto &back = _segments_out.back();
             back.header().syn = _next_seqno == 0;  // if  _next_seqno==0,syn = true;
             back.header().seqno = wrap(_next_seqno, _isn);
-            back.header().ackno = _ack;
+//            back.header().ackno = _ack;
+//            back.header().ack   = true;
             back.header().win   = _win;
 
             auto str = _stream.read(size_of_segment);
@@ -123,8 +124,8 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         if(recv_seq < seg_end){
             // if(){
             //     // 部分接收
-            //     auto recv_part_count = recv_seq - seg_start;      
-            //     _bytes_in_flight -= recv_part_count;  
+            //     auto recv_part_count = recv_seq - seg_start;
+            //     _bytes_in_flight -= recv_part_count;
             // }
             break;
         }
@@ -161,7 +162,8 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
             back.header().fin = i.is_eof();
             back.header().syn = i.is_syn();
             if(!i.is_syn()) {
-                back.header().ackno = _ack;
+//                back.header().ackno = _ack;
+//                back.header().ack   = true;
                 back.header().win = _win;
             }
             i.restart_timer(_receiver_window!=0);
@@ -179,8 +181,9 @@ unsigned int TCPSender::consecutive_retransmissions() const { return _retransmis
 void TCPSender::send_empty_segment() {
      _segments_out.emplace();
      auto &back = _segments_out.back();
-     back.header().seqno = _isn;//invalid seq
-     back.header().ackno = _ack;
+     back.header().seqno = wrap(_next_seqno, _isn);
+//     back.header().ackno = _ack;
+//     back.header().ack   = true;
      back.header().win   = _win;
      _timers.emplace_back();
      _timers.back().start_timer(_next_seqno);
