@@ -20,10 +20,10 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 
 using namespace std;
 
-constexpr int MAX_DATAGRAM_LENGTH=1500;
+//constexpr int MAX_DATAGRAM_LENGTH=1500;
 StreamReassembler::StreamReassembler(const size_t _capacity) : 
     _output(_capacity),capacity(_capacity),
-    first_unread(0),
+//    first_unread(0),
     first_unassembled(0),
     _unassembled_bytes(0),
     _eof(false),

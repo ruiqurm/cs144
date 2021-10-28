@@ -20,7 +20,7 @@ using namespace std;
 //! \param[in] fixed_isn the Initial Sequence Number to use, if set (otherwise uses a random ISN)
 TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const std::optional<WrappingInt32> fixed_isn)
     : _isn(fixed_isn.value_or(WrappingInt32{random_device()()}))
-    , _initial_retransmission_timeout{retx_timeout}
+//    , _initial_retransmission_timeout{retx_timeout}
     , _stream(capacity)
     , _receiver_window(65535)
     , _timers {}

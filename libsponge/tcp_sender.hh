@@ -26,7 +26,7 @@ class TCPSender {
     std::queue<TCPSegment> _segments_out{};
 
     //! retransmission timer for the connection
-    unsigned int _initial_retransmission_timeout;
+//    unsigned int _initial_retransmission_timeout;
 
     //! outgoing stream of bytes that have not yet been sent
     ByteStream _stream;
@@ -41,7 +41,7 @@ class TCPSender {
     bool sended_eof {false};
     uint32_t _retransmission_times {0};
     bool _is_syn {false};
-    bool _valid {true};
+//    bool _valid {true};
   public:
     //! Initialize a TCPSender
     TCPSender(const size_t capacity = TCPConfig::DEFAULT_CAPACITY,

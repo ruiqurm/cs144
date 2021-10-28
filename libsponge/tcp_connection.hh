@@ -20,8 +20,12 @@ class TCPConnection {
     //! for 10 * _cfg.rt_timeout milliseconds after both streams have ended,
     //! in case the remote TCPConnection doesn't know we've received its whole stream?
     bool _linger_after_streams_finish{true};
+    bool _fin_wait_2{false};
     uint64_t _time_since_last_segment_received {0};
     bool _active {false};
+
+
+    void move_to_outer_queue();
   public:
     //! \name "Input" interface for the writer
     //!@{
