@@ -61,8 +61,6 @@ void TCPSender::fill_window() {
             auto &back = _segments_out.back();
             back.header().syn = _next_seqno == 0;  // if  _next_seqno==0,syn = true;
             back.header().seqno = wrap(_next_seqno, _isn);
-//            back.header().ackno = _ack;
-//            back.header().ack   = true;
             back.header().win   = _win;
 
             auto str = _stream.read(size_of_segment);
@@ -133,8 +131,6 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         }
         timer->stop_timer();
         timer = _timers.erase(timer);
-        // 不需要自增
-        // cout<<"byte: "<<_bytes_in_flight<<" seq: "<<_next_seqno<<" eof"<<_stream.eof()<<" writen"<<_stream.bytes_written()<<endl;
     }
     if(is_new_data){
         _retransmission_times = 0;
@@ -161,8 +157,6 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
             back.header().fin = i.is_eof();
             back.header().syn = i.is_syn();
             if(!i.is_syn()) {
-//                back.header().ackno = _ack;
-//                back.header().ack   = true;
                 back.header().win = _win;
             }
             i.restart_timer(_receiver_window!=0);
@@ -181,9 +175,5 @@ void TCPSender::send_empty_segment() {
      _segments_out.emplace();
      auto &back = _segments_out.back();
      back.header().seqno = wrap(_next_seqno, _isn);
-//     back.header().ackno = _ack;
-//     back.header().ack   = true;
      back.header().win   = _win;
-     _timers.emplace_back();
-     _timers.back().start_timer(_next_seqno);
 }
