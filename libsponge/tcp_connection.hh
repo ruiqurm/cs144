@@ -19,11 +19,21 @@ class TCPConnection {
     //! Should the TCPConnection stay active (and keep ACKing)
     //! for 10 * _cfg.rt_timeout milliseconds after both streams have ended,
     //! in case the remote TCPConnection doesn't know we've received its whole stream?
-    bool _linger_after_streams_finish{true};
+    bool _linger_after_streams_finish{false};
     bool _fin_wait_2{false};
     uint64_t _time_since_last_segment_received {0};
     bool _active {false};
-
+    enum class State {
+        IDLE,
+        FIN_WAIT1,
+        FIN_WAIT2,
+        CLOSE_WAIT,
+        LAST_ACK,
+        CLOSING,
+        TIME_WAIT,
+        CLOSED
+    };
+    State _closing_state {State::IDLE};
 
     void move_to_outer_queue();
   public:

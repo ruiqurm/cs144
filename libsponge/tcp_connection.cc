@@ -49,21 +49,56 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 
     //! get data from segment; update ack
     _receiver.segment_received(seg); 
+    
 
     // piggybacking
-    if(seg.header().fin&&_sender.stream_in().eof()&& _sender.bytes_in_flight()==0){
-         _linger_after_streams_finish = true;
-        if(_receiver.stream_out().eof()){
-            //! a special case of passively close
-            //! should send two packets
-            _sender.send_empty_segment();
-            _sender.send_empty_segment();
-            _sender.segments_out().back().header().fin = true;
-        }
-    }else if(_sender.stream_in().buffer_empty()){
-        _sender.send_empty_segment();
-    }else{
-        _sender.fill_window(); 
+    switch(_closing_state){
+        case State::IDLE:
+            if(seg.header().fin){
+                _sender.send_empty_segment();
+                _closing_state = State::CLOSE_WAIT;
+            }else{
+                if(_sender.stream_in().buffer_empty())
+                    _sender.send_empty_segment();
+                else
+                    _sender.fill_window();
+            }
+            break;
+        case State::FIN_WAIT1:
+            if(seg.header().fin){
+                _closing_state = State::CLOSING;
+                _sender.send_empty_segment();
+            }else if(seg.header().ack && _sender.bytes_in_flight()==0){
+                _closing_state = State::FIN_WAIT2;
+            }
+            break;
+        case State::FIN_WAIT2:
+            if(seg.header().fin){
+                _closing_state = State::TIME_WAIT;
+                _sender.send_empty_segment();
+                
+            }
+            break;
+        case State::CLOSING:
+            if(seg.header().ack && _sender.bytes_in_flight()==0){
+                _closing_state = State::TIME_WAIT;
+            }
+            break;
+        case State::LAST_ACK:
+            if(seg.header().ack && _sender.bytes_in_flight()==0){
+                _closing_state = State::CLOSED;
+                _active = false;
+            }
+            break;
+        case State::TIME_WAIT:
+            if(seg.header().fin)_sender.send_empty_segment();
+            break;
+        case State::CLOSE_WAIT:
+            if(seg.header().fin)_sender.send_empty_segment();
+            else _sender.fill_window();
+            break;
+        default:
+            break;
     }
     move_to_outer_queue();
 }
@@ -87,22 +122,25 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
         _sender.send_empty_segment();
         _sender.segments_out().back().header().rst = true;
         _active = false;
+        _closing_state = State::CLOSED;
     }
-    // if(_sender.stream_in().eof() && _sender.bytes_in_flight()==0 && _receiver.stream_out().eof()){
-    //     _linger_after_streams_finish = true;
-    // }
+    move_to_outer_queue();
     if(_linger_after_streams_finish && _time_since_last_segment_received>= 10 * _cfg.rt_timeout){
         // option A
-        cout<<"option A"<<endl;
         _active = false;
+        _closing_state = State::CLOSED;
         return;
     }
 }
 
 void TCPConnection::end_input_stream() {
-    _sender.stream_in().end_input();
-    _sender.fill_window();
-    move_to_outer_queue();
+    if(!_sender.stream_in().eof()){
+        _sender.stream_in().end_input();
+        _sender.fill_window();
+        move_to_outer_queue();
+        _closing_state = _closing_state ==State::IDLE?State::FIN_WAIT1:State::LAST_ACK;
+        _linger_after_streams_finish = _closing_state ==State::IDLE?true:false;
+    }
 }
 
 void TCPConnection::connect() {
