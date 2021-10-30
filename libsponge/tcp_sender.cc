@@ -115,23 +115,22 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     bool is_new_data = false;
     if(_timers.empty())return;
     auto back = _timers.back();
+    auto front = _timers.front();
     auto max_ack = back.get_seq()+back.get_buf().size() +  static_cast<int>(back.is_eof()) + static_cast<int>(back.is_syn());
+    auto min_ack = _next_seqno - _bytes_in_flight + 1;
     if(recv_seq>max_ack)return;
     while(timer != _timers.end()){
         auto seg_start = timer->get_seq();
         auto size = timer->get_buf().size() + static_cast<int>(timer->is_eof()) + static_cast<int>(timer->is_syn());
         auto seg_end = seg_start + size;
         if(recv_seq < seg_end){
-            // if(){
-            //     // 部分接收
-            //     auto recv_part_count = recv_seq - seg_start;
-            //     _bytes_in_flight -= recv_part_count;
-            // }
             break;
         }
         if(recv_seq >0 )_is_syn = true;
-        is_new_data = true;
-        _bytes_in_flight -= (recv_seq==1)?1:size;
+        if(seg_end >= min_ack){
+            is_new_data = true;
+            _bytes_in_flight -= (recv_seq==1)?1:size;
+        }
         timer->stop_timer();
         timer = _timers.erase(timer);
         // 不需要自增
