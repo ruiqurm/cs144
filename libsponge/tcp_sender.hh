@@ -41,6 +41,7 @@ class TCPSender {
     bool sended_eof {false};
     uint32_t _retransmission_times {0};
     bool _is_syn {false};
+    bool _out_of_window{false};
 //    bool _valid {true};
   public:
     //! Initialize a TCPSender
@@ -62,7 +63,7 @@ class TCPSender {
 
     //! \brief Generate an empty-payload segment (useful for creating empty ACK segments)
     void send_empty_segment();
-
+    
     //! \brief create and send segments to fill as much of the window as possible
     void fill_window();
 
@@ -102,10 +103,11 @@ class TCPSender {
         unsigned long receiver_window = (_receiver_window==0)?1:_receiver_window;
         return (receiver_window > _bytes_in_flight)?receiver_window - _bytes_in_flight:0;
     }
-
-//    //! \brief abort then
-//    void abort(){_valid = false;}
-
+    
+    void send_sized_one_segment(bool clean=false);
+    bool check_ack(WrappingInt32 ackno){
+      return unwrap(ackno,_isn, _next_seqno) > _next_seqno-_bytes_in_flight || _out_of_window;
+    }
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_SENDER_HH

@@ -65,9 +65,6 @@ void TCPSender::fill_window() {
 
             auto str = _stream.read(size_of_segment);
             if (i==number_of_segment - 1){// last segment may be the final segment
-                // if size_of_segment==TCPConfig::MAX_PAYLOAD_SIZE
-                // back.header().fin = _stream.eof(), because MAX_PAYLOAD_SIZE limits payload only
-                // else back.header().fin = _stream.eof() && size_of_segment >= str.size()+1;
                 bool a = (size_of_segment==TCPConfig::MAX_PAYLOAD_SIZE);
                 back.header().fin = _stream.eof() && (a? true : can_carry_fin);
             }
@@ -107,16 +104,19 @@ void TCPSender::fill_window() {
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
     auto recv_seq = unwrap(ackno, _isn, _next_seqno);
     // if not in valid range,abort
-    // 确认是哪个片段接到了
     _receiver_window = window_size;
     auto timer = _timers.begin();
-    bool is_new_data = false;
-    if(_timers.empty())return;
+    if(_timers.empty())
+        return;
     auto back = _timers.back();
     auto front = _timers.front();
     auto max_ack = back.get_seq()+back.get_buf().size() +  static_cast<int>(back.is_eof()) + static_cast<int>(back.is_syn());
-    auto min_ack = _next_seqno - _bytes_in_flight + 1;
-    if(recv_seq>max_ack)return;
+    auto min_ack = _next_seqno - _bytes_in_flight;
+    _out_of_window = false;
+    if(recv_seq>max_ack||recv_seq<=min_ack){
+        _out_of_window = true;
+        return;
+    }
     while(timer != _timers.end()){
         auto seg_start = timer->get_seq();
         auto size = timer->get_buf().size() + static_cast<int>(timer->is_eof()) + static_cast<int>(timer->is_syn());
@@ -124,21 +124,16 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         if(recv_seq < seg_end){
             break;
         }
-        if(recv_seq >0 )_is_syn = true;
-        if(seg_end >= min_ack){
-            is_new_data = true;
-            _bytes_in_flight -= (recv_seq==1)?1:size;
-        }
+        _bytes_in_flight -= (recv_seq==1)?1:size;
+        if(!_is_syn &&recv_seq >0 && _bytes_in_flight==0)_is_syn = true;
         timer->stop_timer();
         timer = _timers.erase(timer);
     }
-    if(is_new_data){
-        _retransmission_times = 0;
-        for(auto&i:_timers){
-            i.reset_timer();
-        }
-        TCPRetransmissionTimer::reset_rto();
+    _retransmission_times = 0;
+    for(auto&i:_timers){
+        i.reset_timer();
     }
+    TCPRetransmissionTimer::reset_rto();
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
@@ -176,4 +171,16 @@ void TCPSender::send_empty_segment() {
      auto &back = _segments_out.back();
      back.header().seqno = wrap(_next_seqno, _isn);
      back.header().win   = _win;
+}
+
+void TCPSender::send_sized_one_segment(bool clean){
+    _segments_out.emplace();
+    auto &back = _segments_out.back();
+    back.header().seqno = wrap(_next_seqno, _isn);
+    back.header().win   = _win;
+    if(clean){
+        // _timers.pop_back();
+    }else{
+     _next_seqno++;
+    }
 }

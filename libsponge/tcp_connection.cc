@@ -34,10 +34,10 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         _sender.stream_in().set_error();
         _receiver.stream_out().set_error();
         _active = false;
-        cout<<"segment_received 11111"<<endl;
         return;
     }
     //! update next_seq and window
+    bool should_response_in_established = _sender.check_ack(seg.header().ackno);
     _sender.ack_received(seg.header().ackno,seg.header().win);
     //! flush clock
     _time_since_last_segment_received = 0;
@@ -49,44 +49,57 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 
     //! get data from segment; update ack
     _receiver.segment_received(seg); 
-    
 
     // piggybacking
-    switch(_closing_state){
-        case State::IDLE:
+    switch(_state){
+        case State::LISTEN:
+            if(seg.header().syn){
+                _sender.fill_window();
+                _state = State::SYN_RECEIVED;
+            }
+            break;
+        case State::SYN_SENT:
+            if(seg.header().syn){
+                _state = seg.header().ack?State::ESTABLISHED:State::SYN_RECEIVED;
+                bool should_clean = !seg.header().ack;
+                _sender.send_sized_one_segment(should_clean);
+            }
+            break;
+        case State::SYN_RECEIVED:
+            if(seg.header().ack)_state = State::ESTABLISHED;
+            break;
+        case State::ESTABLISHED:
             if(seg.header().fin){
+                _state = State::CLOSE_WAIT;
                 _sender.send_empty_segment();
-                _closing_state = State::CLOSE_WAIT;
-            }else{
-                if(_sender.stream_in().buffer_empty())
-                    _sender.send_empty_segment();
-                else
-                    _sender.fill_window();
+            }else if(!_sender.stream_in().buffer_empty()){
+                _sender.fill_window();
+            }else if(should_response_in_established){
+                _sender.send_empty_segment();
             }
             break;
         case State::FIN_WAIT1:
             if(seg.header().fin){
-                _closing_state = State::CLOSING;
+                _state = State::CLOSING;
                 _sender.send_empty_segment();
             }else if(seg.header().ack && _sender.bytes_in_flight()==0){
-                _closing_state = State::FIN_WAIT2;
+                _state = State::FIN_WAIT2;
             }
             break;
         case State::FIN_WAIT2:
             if(seg.header().fin){
-                _closing_state = State::TIME_WAIT;
+                _state = State::TIME_WAIT;
                 _sender.send_empty_segment();
-                
             }
             break;
         case State::CLOSING:
             if(seg.header().ack && _sender.bytes_in_flight()==0){
-                _closing_state = State::TIME_WAIT;
+                _state = State::TIME_WAIT;
             }
             break;
         case State::LAST_ACK:
             if(seg.header().ack && _sender.bytes_in_flight()==0){
-                _closing_state = State::CLOSED;
+                _state = State::CLOSED;
                 _active = false;
             }
             break;
@@ -122,13 +135,13 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
         _sender.send_empty_segment();
         _sender.segments_out().back().header().rst = true;
         _active = false;
-        _closing_state = State::CLOSED;
+        _state = State::CLOSED;
     }
     move_to_outer_queue();
     if(_linger_after_streams_finish && _time_since_last_segment_received>= 10 * _cfg.rt_timeout){
         // option A
         _active = false;
-        _closing_state = State::CLOSED;
+        _state = State::CLOSED;
         return;
     }
 }
@@ -138,8 +151,8 @@ void TCPConnection::end_input_stream() {
         _sender.stream_in().end_input();
         _sender.fill_window();
         move_to_outer_queue();
-        _closing_state = _closing_state ==State::IDLE?State::FIN_WAIT1:State::LAST_ACK;
-        _linger_after_streams_finish = _closing_state ==State::IDLE?true:false;
+        _state = _state ==State::ESTABLISHED?State::FIN_WAIT1:State::LAST_ACK;
+        _linger_after_streams_finish = _state ==State::ESTABLISHED?true:false;
     }
 }
 
@@ -147,7 +160,7 @@ void TCPConnection::connect() {
     if(_sender.next_seqno_absolute()==0) {
         _sender.fill_window();
         move_to_outer_queue();
-        _active= true;
+        _state = State::SYN_SENT;
     }
 }
 
@@ -155,7 +168,6 @@ TCPConnection::~TCPConnection() {
     try {
         if (active()) {
             cerr << "Warning: Unclean shutdown of TCPConnection\n";
-
             // Your code here: need to send a RST segment to the peer
             _sender.send_empty_segment();
             _sender.segments_out().back().header().rst = true;
