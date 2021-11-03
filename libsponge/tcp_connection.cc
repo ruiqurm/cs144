@@ -37,7 +37,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         return;
     }
     //! update next_seq and window
-    bool should_response_in_established = _sender.check_ack(seg.header().ackno);
+    // bool should_response_in_established = _sender.check_ack(seg.header().ackno);
     _sender.ack_received(seg.header().ackno,seg.header().win);
     //! flush clock
     _time_since_last_segment_received = 0;
@@ -72,10 +72,12 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             if(seg.header().fin){
                 _state = State::CLOSE_WAIT;
                 _sender.send_empty_segment();
-            }else if(!_sender.stream_in().buffer_empty()){
-                _sender.fill_window();
-            }else if(should_response_in_established){
-                _sender.send_empty_segment();
+            }else if(_sender.should_ack() || (!_sender.should_ack() && _receiver.should_ack())){
+                if(!_sender.stream_in().buffer_empty()){
+                    _sender.fill_window();
+                }else{
+                    _sender.send_empty_segment();
+                }
             }
             break;
         case State::FIN_WAIT1:

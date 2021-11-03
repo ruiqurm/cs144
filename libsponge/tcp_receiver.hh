@@ -21,6 +21,7 @@ class TCPReceiver {
     bool valid;
     WrappingInt32 ack;
     WrappingInt32 isn;
+    bool _should_ack{false};
 
   public:
     //! \brief Construct a TCP receiver
@@ -63,6 +64,7 @@ class TCPReceiver {
     ByteStream &stream_out() { return _reassembler.stream_out(); }
     const ByteStream &stream_out() const { return _reassembler.stream_out(); }
     //!@}
+    bool should_ack()const{return _should_ack;}
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_RECEIVER_HH

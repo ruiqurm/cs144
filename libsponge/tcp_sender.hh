@@ -41,7 +41,7 @@ class TCPSender {
     bool sended_eof {false};
     uint32_t _retransmission_times {0};
     bool _is_syn {false};
-    bool _out_of_window{false};
+    bool _should_ack{false};
     uint64_t _timer {0};
     bool _is_timer_start {false};
     uint32_t _init_rto;
@@ -109,8 +109,8 @@ class TCPSender {
     }
     
     void send_sized_one_segment(bool clean=false);
-    bool check_ack(WrappingInt32 ackno){
-      return unwrap(ackno,_isn, _next_seqno) > _next_seqno-_bytes_in_flight || _out_of_window;
+    bool should_ack(){
+      return  _should_ack;
     }
 };
 

@@ -114,11 +114,11 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     auto timer = _timers.begin();
     auto max_ack = _next_seqno;
     auto min_ack = _next_seqno - _bytes_in_flight;
-    _out_of_window = false;
-    if(recv_seq>max_ack||recv_seq<=min_ack||_bytes_in_flight==0){
-        _out_of_window = true;
+    _should_ack = recv_seq>min_ack;
+    if(recv_seq>max_ack||recv_seq<=min_ack){
         return;
     }
+    if(_bytes_in_flight==0)return;
     while(timer != _timers.end()){
         auto seg_start = timer->get_seq();
         auto size = timer->get_buf().size() + static_cast<int>(timer->is_eof()) + static_cast<int>(timer->is_syn());
