@@ -24,7 +24,9 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
     , _stream(capacity)
     , _receiver_window(65535)
     , _timers {}
-    , _retransmission_times{0}{
+    , _retransmission_times{0}
+    ,_init_rto{retx_timeout}
+    ,_rto{retx_timeout}{
         TCPRetransmissionTimer::init_rto(retx_timeout);
     }
 
@@ -74,7 +76,6 @@ void TCPSender::fill_window() {
             _timers.back().start_timer(_next_seqno);
             _timers.back().set_str(str);
             if(back.header().fin)_timers.back().set_eof();
-
             // set up payload
             back.payload() = string(str);
 
@@ -96,6 +97,11 @@ void TCPSender::fill_window() {
         _timers.back().set_syn();
         _next_seqno =  1;
         _bytes_in_flight += 1;
+    }
+    if(!_is_timer_start){
+        _is_timer_start = true;
+        _timer = 0;
+        _rto = _init_rto;
     }
 }
 
@@ -125,39 +131,49 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         timer->stop_timer();
         timer = _timers.erase(timer);
     }
+    if(_timers.empty()) {_is_timer_start=false;}
     _retransmission_times = 0;
-    for(auto&i:_timers){
-        i.reset_timer();
-    }
-    TCPRetransmissionTimer::reset_rto();
+    _timer = 0;
+    // for(auto&i:_timers){
+        // i.reset_timer();
+    // }
+    _rto = _init_rto;
+    // TCPRetransmissionTimer::reset_rto();
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) {
-    auto first_expired = true;
-    for(auto&i:_timers){
-        i.increase_tick(ms_since_last_tick);
-        if (first_expired && i.is_expired()) {
-            first_expired = false;
+    // auto first_expired = true;
+    if(!_is_timer_start)return;
+    _timer += ms_since_last_tick;
+    // for(auto&i:_timers){
+        // i.increase_tick(ms_since_last_tick);
+        // if (first_expired && i.is_expired()) {
+    if(_timer >= _rto){
+            // first_expired = false;
+            auto first = _timers.front();
             _retransmission_times++;
             
             _segments_out.emplace();
             auto &back = _segments_out.back();
-            back.header().seqno = wrap(i.get_seq(), _isn);
-            back.payload() = string(i.get_buf());
-            back.header().fin = i.is_eof();
-            back.header().syn = i.is_syn();
-            if(!i.is_syn()) {
+            back.header().seqno = wrap(first.get_seq(), _isn);
+            back.payload() = string(first.get_buf());
+            back.header().fin = first.is_eof();
+            back.header().syn = first.is_syn();
+            if(!first.is_syn()) {
                 back.header().win = _win;
             }
-            i.restart_timer(_receiver_window!=0);
+            // i.restart_timer(_receiver_window!=0);
+            if(_receiver_window!=0)
+                _rto*=2;
+            _timer = 0;
         }
-    }
-    if(!first_expired){
-        for(auto&i:_timers){
-            i.reset_timer();
-        }
-    }
+    // }
+    // if(!first_expired){
+    //     for(auto&i:_timers){
+    //         i.reset_timer();
+    //     }
+    // }
 }
 
 unsigned int TCPSender::consecutive_retransmissions() const { return _retransmission_times; }

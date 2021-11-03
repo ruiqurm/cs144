@@ -42,6 +42,10 @@ class TCPSender {
     uint32_t _retransmission_times {0};
     bool _is_syn {false};
     bool _out_of_window{false};
+    uint64_t _timer {0};
+    bool _is_timer_start {false};
+    uint32_t _init_rto;
+    uint32_t _rto;
 //    bool _valid {true};
   public:
     //! Initialize a TCPSender
