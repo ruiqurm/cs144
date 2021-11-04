@@ -21,7 +21,7 @@ class TCPSender {
     //! our initial sequence number, the number for our SYN.
     WrappingInt32 _isn;
     WrappingInt32 _ack{0};
-    uint16_t  _win {0};
+    uint16_t  _win;
     //! outbound queue of segments that the TCPSender wants sent
     std::queue<TCPSegment> _segments_out{};
 
@@ -109,9 +109,10 @@ class TCPSender {
     }
     
     void send_sized_one_segment(bool clean=false);
-    bool should_ack(){
+    bool should_ack()const{
       return  _should_ack;
     }
+    void set_window(int window){ _win = window;}
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_SENDER_HH

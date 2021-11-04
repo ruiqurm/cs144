@@ -56,6 +56,8 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             if(seg.header().syn){
                 _sender.fill_window();
                 _state = State::SYN_RECEIVED;
+                // cout<<seg.header().win;
+                // _sender.set_window(seg.header().win);
             }
             break;
         case State::SYN_SENT:
@@ -66,7 +68,9 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             }
             break;
         case State::SYN_RECEIVED:
-            if(seg.header().ack)_state = State::ESTABLISHED;
+            if(seg.header().ack){
+                _state = State::ESTABLISHED;
+            }
             break;
         case State::ESTABLISHED:
             if(seg.header().fin){
