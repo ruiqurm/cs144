@@ -38,6 +38,7 @@ class TCPConnection {
     State _state {State::LISTEN};
 
     void move_to_outer_queue();
+    void set_error();
   public:
     //! \name "Input" interface for the writer
     //!@{

@@ -31,10 +31,7 @@ size_t TCPConnection::time_since_last_segment_received() const {
 void TCPConnection::segment_received(const TCPSegment &seg) {
     //! if this is a keep-alive segement
     if(seg.header().rst){
-        _sender.stream_in().set_error();
-        _receiver.stream_out().set_error();
-        _active = false;
-        _linger_after_streams_finish = false;
+        set_error();
         return;
     }
     //! update next_seq and window_linger_after_streams_finish
@@ -140,12 +137,10 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
     if(_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS){
         _sender.send_empty_segment();
         _sender.segments_out().back().header().rst = true;
-        _linger_after_streams_finish = false;
-        _active = false;
-        _state = State::CLOSED;
+        set_error();
     }
     move_to_outer_queue();
-    if(_linger_after_streams_finish && _time_since_last_segment_received>= 10 * _cfg.rt_timeout){
+    if((_sender.bytes_in_flight()==0 && _sender.stream_in().eof()) && _time_since_last_segment_received>= 10 * _cfg.rt_timeout){
         // option A
         _active = false;
         _state = State::CLOSED;
@@ -178,8 +173,7 @@ TCPConnection::~TCPConnection() {
             // Your code here: need to send a RST segment to the peer
             _sender.send_empty_segment();
             _sender.segments_out().back().header().rst = true;
-            _linger_after_streams_finish = false;
-            _active = false;
+            set_error();
         }
     } catch (const exception &e) {
         std::cerr << "Exception destructing TCP FSM: " << e.what() << std::endl;
@@ -196,4 +190,12 @@ void TCPConnection::move_to_outer_queue(){
         _segments_out.push(front);
         _sender.segments_out().pop();
     }
+}
+
+void TCPConnection::set_error(){
+    _sender.stream_in().set_error();
+    _receiver.stream_out().set_error();
+    _state = State::CLOSED;
+    _active = false;
+    _linger_after_streams_finish = false;
 }
