@@ -154,7 +154,7 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
             // first_expired = false;
             auto first = _timers.front();
             _retransmission_times++;
-            
+            if(_retransmission_times>TCPConfig::MAX_RETX_ATTEMPTS)return;
             _segments_out.emplace();
             auto &back = _segments_out.back();
             back.header().seqno = wrap(first.get_seq(), _isn);
