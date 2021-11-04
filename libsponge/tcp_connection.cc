@@ -34,9 +34,10 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         _sender.stream_in().set_error();
         _receiver.stream_out().set_error();
         _active = false;
+        _linger_after_streams_finish = false;
         return;
     }
-    //! update next_seq and window
+    //! update next_seq and window_linger_after_streams_finish
     // bool should_response_in_established = _sender.check_ack(seg.header().ackno);
     _sender.ack_received(seg.header().ackno,seg.header().win);
     //! flush clock
@@ -56,8 +57,6 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             if(seg.header().syn){
                 _sender.fill_window();
                 _state = State::SYN_RECEIVED;
-                // cout<<seg.header().win;
-                // _sender.set_window(seg.header().win);
             }
             break;
         case State::SYN_SENT:
@@ -140,6 +139,7 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
     if(_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS){
         _sender.send_empty_segment();
         _sender.segments_out().back().header().rst = true;
+        _linger_after_streams_finish = false;
         _active = false;
         _state = State::CLOSED;
     }
@@ -157,8 +157,8 @@ void TCPConnection::end_input_stream() {
         _sender.stream_in().end_input();
         _sender.fill_window();
         move_to_outer_queue();
-        _state = _state ==State::ESTABLISHED?State::FIN_WAIT1:State::LAST_ACK;
         _linger_after_streams_finish = _state ==State::ESTABLISHED?true:false;
+        _state = _state ==State::ESTABLISHED?State::FIN_WAIT1:State::LAST_ACK;
     }
 }
 
@@ -177,6 +177,7 @@ TCPConnection::~TCPConnection() {
             // Your code here: need to send a RST segment to the peer
             _sender.send_empty_segment();
             _sender.segments_out().back().header().rst = true;
+            _linger_after_streams_finish = false;
             _active = false;
         }
     } catch (const exception &e) {
