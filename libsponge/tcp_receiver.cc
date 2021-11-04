@@ -17,10 +17,10 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     }
     // seg.seqno may be less than isn
     auto index = header.syn? 0:unwrap(header.seqno,isn,_reassembler.head_index())-1;
-    if(seg.length_in_sequence_space()!=0)
-        _should_ack=true;
+    if(seg.length_in_sequence_space()==0 && index == _reassembler.head_index())
+        _should_ack=false;
     else
-    _should_ack =  (_reassembler.head_index()==0)? index > 10000 :index < _reassembler.head_index();
+        _should_ack =  true;
     _reassembler.push_substring(seg.payload().copy(),index,header.fin);
     ack = wrap(_reassembler.head_index()+1,isn);
     ack = ack + (_reassembler.input_ended()?1:0);
