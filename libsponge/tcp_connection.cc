@@ -73,12 +73,10 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
                 _state = State::CLOSE_WAIT;
                 _linger_after_streams_finish = false;
                 _sender.send_empty_segment();
-            }else if(_sender.should_ack() || (!_sender.should_ack() && _receiver.should_ack())){
-                if(!_sender.stream_in().buffer_empty()){
-                    _sender.fill_window();
-                }else{
-                    _sender.send_empty_segment();
-                }
+            }else if(!_sender.stream_in().buffer_empty()) {
+                _sender.fill_window();
+            }else if(_receiver.should_ack()){
+                _sender.send_empty_segment();
             }
             break;
         case State::FIN_WAIT1:
