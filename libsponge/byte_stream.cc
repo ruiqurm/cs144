@@ -18,6 +18,7 @@ ByteStream::ByteStream(const size_t capacity) : _capacity(capacity) {}
 
 size_t ByteStream::write(const string &data) {
     size_t len = data.length();
+    if(len==0)return 0;
     if (len > _capacity - _buffer.size()) {
         len = _capacity - _buffer.size();
     }

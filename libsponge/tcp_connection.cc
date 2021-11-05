@@ -47,7 +47,41 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 
     //! get data from segment; update ack
     _receiver.segment_received(seg); 
-
+    switch (_state) {
+        case State::LISTEN:
+            cerr<<"Listen"<<endl;
+            break;
+        case State::SYN_SENT:
+            cerr<<"SYN_SENT"<<endl;
+            break;
+        case State::SYN_RECEIVED:
+            cerr<<"SYN_RECEIVED"<<endl;
+            break;
+        case State::ESTABLISHED:
+            cerr<<"ESTABLISHED"<<endl;
+            break;
+        case State::FIN_WAIT1:
+            cerr<<"FIN_WAIT1"<<endl;
+            break;
+        case State::FIN_WAIT2:
+            cerr<<"FIN_WAIT2"<<endl;
+            break;
+        case State::CLOSING:
+            cerr<<"CLOSING"<<endl;
+            break;
+        case State::LAST_ACK:
+            cerr<<"LAST_ACK"<<endl;
+            break;
+        case State::CLOSE_WAIT:
+            cerr<<"CLOSE_WAIT"<<endl;
+            break;
+        case State::TIME_WAIT:
+            cerr<<"TIME_WAIT"<<endl;
+            break;
+        case State::CLOSED:
+            cerr<<"CLOSED"<<endl;
+            break;
+    }
     // piggybacking
     switch(_state){
         case State::LISTEN:
@@ -66,6 +100,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         case State::SYN_RECEIVED:
             if(seg.header().ack){
                 _state = State::ESTABLISHED;
+                cerr<<"received ack"<<endl;
             }
             break;
         case State::ESTABLISHED:
