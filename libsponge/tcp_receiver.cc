@@ -23,9 +23,8 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
         _should_ack =  true;
     _reassembler.push_substring(seg.payload().copy(),index,header.fin);
     ack = wrap(_reassembler.head_index()+1,isn);
-    ack = ack + (_reassembler.input_ended()?1:0);
-//    cout<<"ack"<<ack<<"\n";
-    // cout<<"ack"<<_reassembler.unassembled_bytes()<<"\n";
+    ack = ack + (_reassembler.stream_out().input_ended()?1:0);
+
 }
 
 optional<WrappingInt32> TCPReceiver::ackno() const {
@@ -34,5 +33,5 @@ optional<WrappingInt32> TCPReceiver::ackno() const {
 }
 
 size_t TCPReceiver::window_size() const { 
-    return _reassembler.window();
+    return _reassembler.stream_out().remaining_capacity();
 }
