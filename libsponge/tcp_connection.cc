@@ -85,11 +85,15 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
                 _sender.send_empty_segment();
             }else if(seg.header().ack && _sender.bytes_in_flight()==0){
                 _state = State::FIN_WAIT2;
+            }else if(_receiver.should_ack()){
+                _sender.send_empty_segment();
             }
             break;
         case State::FIN_WAIT2:
             if(seg.header().fin){
                 _state = State::TIME_WAIT;
+                _sender.send_empty_segment();
+            }else if(_receiver.should_ack()){
                 _sender.send_empty_segment();
             }
             break;
