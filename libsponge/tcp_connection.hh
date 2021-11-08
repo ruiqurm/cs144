@@ -39,6 +39,7 @@ class TCPConnection {
 
     void move_to_outer_queue();
     void set_error();
+    void report_state();
   public:
     //! \name "Input" interface for the writer
     //!@{

@@ -30,6 +30,44 @@ size_t TCPConnection::time_since_last_segment_received() const {
 
 void TCPConnection::segment_received(const TCPSegment &seg) {
     //! if this is a keep-alive segement
+    // cerr<<"\n----------------------------\n";
+    // switch (_state) {
+    //     case State::LISTEN:
+    //         cerr<<"Listen"<<endl;
+    //         break;
+    //     case State::SYN_SENT:
+    //         cerr<<"SYN_SENT"<<endl;
+    //         break;
+    //     case State::SYN_RECEIVED:
+    //         cerr<<"SYN_RECEIVED"<<endl;
+    //         break;
+    //     case State::ESTABLISHED:
+    //         cerr<<"ESTABLISHED"<<endl;
+    //         break;
+    //     case State::FIN_WAIT1:
+    //         cerr<<"FIN_WAIT1"<<endl;
+    //         break;
+    //     case State::FIN_WAIT2:
+    //         cerr<<"FIN_WAIT2"<<endl;
+    //         break;
+    //     case State::CLOSING:
+    //         cerr<<"CLOSING"<<endl;
+    //         break;
+    //     case State::LAST_ACK:
+    //         cerr<<"LAST_ACK"<<endl;
+    //         break;
+    //     case State::CLOSE_WAIT:
+    //         cerr<<"CLOSE_WAIT"<<endl;
+    //         break;
+    //     case State::TIME_WAIT:
+    //         cerr<<"TIME_WAIT"<<endl;
+    //         break;
+    //     case State::CLOSED:
+    //         cerr<<"CLOSED"<<endl;
+    //         break;
+    // }
+    // cerr<<seg.header().to_string();
+    // cerr<<"----------------------------\n";
     if(seg.header().rst){
         set_error();
         return;
@@ -46,42 +84,8 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     }
 
     //! get data from segment; update ack
-    _receiver.segment_received(seg); 
-    switch (_state) {
-        case State::LISTEN:
-            cerr<<"Listen"<<endl;
-            break;
-        case State::SYN_SENT:
-            cerr<<"SYN_SENT"<<endl;
-            break;
-        case State::SYN_RECEIVED:
-            cerr<<"SYN_RECEIVED"<<endl;
-            break;
-        case State::ESTABLISHED:
-            cerr<<"ESTABLISHED"<<endl;
-            break;
-        case State::FIN_WAIT1:
-            cerr<<"FIN_WAIT1"<<endl;
-            break;
-        case State::FIN_WAIT2:
-            cerr<<"FIN_WAIT2"<<endl;
-            break;
-        case State::CLOSING:
-            cerr<<"CLOSING"<<endl;
-            break;
-        case State::LAST_ACK:
-            cerr<<"LAST_ACK"<<endl;
-            break;
-        case State::CLOSE_WAIT:
-            cerr<<"CLOSE_WAIT"<<endl;
-            break;
-        case State::TIME_WAIT:
-            cerr<<"TIME_WAIT"<<endl;
-            break;
-        case State::CLOSED:
-            cerr<<"CLOSED"<<endl;
-            break;
-    }
+    _receiver.segment_received(seg);
+    // report_state();
     // piggybacking
     switch(_state){
         case State::LISTEN:
@@ -104,7 +108,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             }
             break;
         case State::ESTABLISHED:
-            if(seg.header().fin){
+            if(_receiver.stream_out().eof()){
                 _state = State::CLOSE_WAIT;
                 _linger_after_streams_finish = false;
                 _sender.send_empty_segment();
@@ -115,7 +119,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             }
             break;
         case State::FIN_WAIT1:
-            if(seg.header().fin){
+            if(_receiver.stream_out().eof()){
                 _state = State::CLOSING;
                 _sender.send_empty_segment();
             }else if(seg.header().ack && _sender.bytes_in_flight()==0){
@@ -125,10 +129,11 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             }
             break;
         case State::FIN_WAIT2:
-            if(seg.header().fin){
+            if(_receiver.stream_out().eof()){
+                report_state();
                 _state = State::TIME_WAIT;
                 _sender.send_empty_segment();
-            }else if(_receiver.should_ack()){
+            }else {
                 _sender.send_empty_segment();
             }
             break;
@@ -136,6 +141,10 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             if(seg.header().ack && _sender.bytes_in_flight()==0){
                 _state = State::TIME_WAIT;
             }
+            break;
+        case State::CLOSE_WAIT:
+            if(seg.header().fin)_sender.send_empty_segment();
+            // else _sender.fill_window();
             break;
         case State::LAST_ACK:
             if(seg.header().ack && _sender.bytes_in_flight()==0){
@@ -145,10 +154,6 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             break;
         case State::TIME_WAIT:
             if(seg.header().fin)_sender.send_empty_segment();
-            break;
-        case State::CLOSE_WAIT:
-            if(seg.header().fin)_sender.send_empty_segment();
-            else _sender.fill_window();
             break;
         default:
             break;
@@ -177,7 +182,7 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
         set_error();
     }
     move_to_outer_queue();
-    if((_sender.bytes_in_flight()==0 && _sender.stream_in().eof()) && _time_since_last_segment_received>= 10 * _cfg.rt_timeout){
+    if((_sender.bytes_in_flight()==0 && _sender.stream_in().eof() &&_receiver.stream_out().eof()) && _time_since_last_segment_received>= 10 * _cfg.rt_timeout){
         // option A
         _active = false;
         _state = State::CLOSED;
@@ -235,4 +240,12 @@ void TCPConnection::set_error(){
     _state = State::CLOSED;
     _active = false;
     _linger_after_streams_finish = false;
+}
+void TCPConnection::report_state(){
+    cerr<<"\033[36mactive："<<_active
+        <<"linger: "<<_linger_after_streams_finish
+        <<"receiver,end:"<<_receiver.stream_out().eof()
+        <<"sender end:"<<_sender.stream_in().eof()
+        <<"\033[0m"
+        <<endl;
 }
