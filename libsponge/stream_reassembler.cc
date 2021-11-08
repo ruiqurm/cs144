@@ -46,7 +46,10 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
         return;
     } 
     if(size ==0){
-        if(eof){//特判
+        if(eof && blocks.empty() && index==first_unassembled){//特判
+            // cerr<<"index:"<<index<<"\n";
+            // cerr<<"capacity:"<<capacity<<"\nfirst_unassembled:"<<first_unassembled<<"\nfirst_unacceptable: "<<first_unacceptable<<endl;
+            // cerr<<"end_input222222"<<endl;
             _output.end_input();
         }
         return;
@@ -89,9 +92,11 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
         // 合并确定窗口
         add(copy_start,copy_end);
         if(_eof && first_unassembled>_eof_pos){
+            cerr<<"end input!!!!!!!!!!!!!!!!!"<<endl;
             _output.end_input();
         }
     }
+    // cerr<<"\033[34mfirst_unassembled"<<dec<<first_unassembled<<"\033[0m\n";
     #ifdef DEBUG
     cout<<"\033[34m[pre_first_unassembled] "<<pre_first_unassembled<<" [after_first_unassembled]: "<<first_unassembled<<
     "[first_unacceptable] "<<first_unacceptable<<
