@@ -68,6 +68,7 @@ void TCPSender::fill_window() {
             auto str = _stream.read(size_of_segment);
             if (i==number_of_segment - 1){// last segment may be the final segment
                 bool a = (size_of_segment==TCPConfig::MAX_PAYLOAD_SIZE);
+                // if(_stream.eof())cerr<<"reach eof!!"<<endl;
                 back.header().fin = _stream.eof() && (a? true : can_carry_fin);
             }
             _timers.emplace_back();

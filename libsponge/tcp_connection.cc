@@ -13,7 +13,7 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 using namespace std;
 
 size_t TCPConnection::remaining_outbound_capacity() const { 
-    return _sender.remaining_outbound_capacity();
+    return _sender.stream_in().remaining_capacity();
 }
 
 size_t TCPConnection::bytes_in_flight() const {
@@ -66,7 +66,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     //         cerr<<"CLOSED"<<endl;
     //         break;
     // }
-    // cerr<<seg.header().to_string();
+    // // cerr<<seg.header().to_string();
     // cerr<<"----------------------------\n";
     if(seg.header().rst){
         set_error();
@@ -119,7 +119,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             }
             break;
         case State::FIN_WAIT1:
-            if(_receiver.stream_out().eof()){
+            if(seg.header().fin){
                 _state = State::CLOSING;
                 _sender.send_empty_segment();
             }else if(seg.header().ack && _sender.bytes_in_flight()==0){
@@ -144,7 +144,12 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             break;
         case State::CLOSE_WAIT:
             if(seg.header().fin)_sender.send_empty_segment();
-            // else _sender.fill_window();
+            else{
+                _sender.fill_window();
+                if(_sender.segments_out().back().header().fin){
+                    _state = State::LAST_ACK;
+                }
+            }
             break;
         case State::LAST_ACK:
             if(seg.header().ack && _sender.bytes_in_flight()==0){
@@ -191,12 +196,22 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
 }
 
 void TCPConnection::end_input_stream() {
-    if(!_sender.stream_in().eof()){
+    if(_state == State::ESTABLISHED || _state == State::CLOSE_WAIT){
+        // cerr<<"关闭"<<_sender.stream_in().buffer_size()<<endl;
         _sender.stream_in().end_input();
         _sender.fill_window();
+        // cerr<<"!!!!!!!!!!!!!!!!!!!!\n"
+        //     <<_sender.segments_out().back().header().to_string()
+        //     <<"!!!!!!!!!!!!!!!!!!!!\n";
+        // cerr<<_sender.bytes_in_flight()<<"in flight "<<_sender.stream_in().eof()<<"\n";
         move_to_outer_queue();
         _linger_after_streams_finish = _state ==State::ESTABLISHED?true:false;
-        _state = _state ==State::ESTABLISHED?State::FIN_WAIT1:State::LAST_ACK;
+        if(_state == State::ESTABLISHED){
+            _state = _sender.segments_out().back().header().fin?State::FIN_WAIT1:State::ESTABLISHED;
+        }else{
+            _state = _sender.segments_out().back().header().fin?State::LAST_ACK:State::CLOSE_WAIT;
+
+        }
     }
 }
 
@@ -222,6 +237,7 @@ TCPConnection::~TCPConnection() {
     }
 }
 void TCPConnection::move_to_outer_queue(){
+    // 在这里加个删掉empty
     auto has_ack = _receiver.ackno().has_value();
     while(!_sender.segments_out().empty()){
         auto front = _sender.segments_out().front();
@@ -243,9 +259,9 @@ void TCPConnection::set_error(){
 }
 void TCPConnection::report_state(){
     cerr<<"\033[36mactive："<<_active
-        <<"linger: "<<_linger_after_streams_finish
-        <<"receiver,end:"<<_receiver.stream_out().eof()
-        <<"sender end:"<<_sender.stream_in().eof()
+        <<"\nlinger: "<<_linger_after_streams_finish
+        <<"\nreceiver,end:"<<_receiver.stream_out().eof()
+        <<"\nsender end:"<<_sender.stream_in().eof()
         <<"\033[0m"
         <<endl;
 }

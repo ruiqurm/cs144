@@ -92,11 +92,11 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
         // 合并确定窗口
         add(copy_start,copy_end);
         if(_eof && first_unassembled>_eof_pos){
-            cerr<<"end input!!!!!!!!!!!!!!!!!"<<endl;
+            // cerr<<"end input!!!!!!!!!!!!!!!!!"<<endl;
             _output.end_input();
         }
     }
-    // cerr<<"\033[34mfirst_unassembled"<<dec<<first_unassembled<<"\033[0m\n";
+    // cerr<<"first_unassembled"<<dec<<first_unassembled<<"\n";
     #ifdef DEBUG
     cout<<"\033[34m[pre_first_unassembled] "<<pre_first_unassembled<<" [after_first_unassembled]: "<<first_unassembled<<
     "[first_unacceptable] "<<first_unacceptable<<
