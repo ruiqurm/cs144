@@ -66,7 +66,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     //         cerr<<"CLOSED"<<endl;
     //         break;
     // }
-    // // cerr<<seg.header().to_string();
+    // cerr<<seg.header().to_string();
     // cerr<<"----------------------------\n";
     if(seg.header().rst){
         set_error();
@@ -85,7 +85,6 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 
     //! get data from segment; update ack
     _receiver.segment_received(seg);
-    // report_state();
     // piggybacking
     switch(_state){
         case State::LISTEN:
@@ -109,11 +108,24 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             break;
         case State::ESTABLISHED:
             if(_receiver.stream_out().eof()){
+                // cerr<<"还有 "<<_sender.stream_in().buffer_size()<<endl;
+                // cerr<<"eof "<<_sender.stream_in().eof()<<endl;
+                // cerr<<"fly "<<_sender.bytes_in_flight()<<endl;
                 _state = State::CLOSE_WAIT;
                 _linger_after_streams_finish = false;
-                _sender.send_empty_segment();
-            }else if(!_sender.stream_in().buffer_empty()) {
+                if(!_sender.stream_in().input_ended() && _sender.stream_in().buffer_empty()){
+                    _sender.send_empty_segment();
+                }else {
+                    _sender.fill_window();
+                }
+                // cerr<<"还有 "<<_sender.stream_in().buffer_size()<<endl;
+                // cerr<<"fly "<<_sender.bytes_in_flight()<<endl;
+            }else if(!_sender.stream_in().buffer_empty()){
                 _sender.fill_window();
+            }else if((_sender.stream_in().eof() && _sender.bytes_in_flight()==0)){
+                // 单窗口eof的情况
+                _sender.fill_window();
+                _state = State::FIN_WAIT1;
             }else if(_receiver.should_ack()){
                 _sender.send_empty_segment();
             }
@@ -130,7 +142,6 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             break;
         case State::FIN_WAIT2:
             if(_receiver.stream_out().eof()){
-                report_state();
                 _state = State::TIME_WAIT;
                 _sender.send_empty_segment();
             }else {
@@ -197,7 +208,7 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
 
 void TCPConnection::end_input_stream() {
     if(_state == State::ESTABLISHED || _state == State::CLOSE_WAIT){
-        // cerr<<"关闭"<<_sender.stream_in().buffer_size()<<endl;
+        cerr<<"关闭"<<_sender.stream_in().buffer_size()<<endl;
         _sender.stream_in().end_input();
         _sender.fill_window();
         // cerr<<"!!!!!!!!!!!!!!!!!!!!\n"
