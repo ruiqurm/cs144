@@ -67,6 +67,9 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     //         break;
     // }
     // cerr<<seg.header().to_string();
+    // cerr<<"size: "<<seg.length_in_sequence_space()<<endl;
+    // cerr<<" _sender.bytes_in_flight() "<< _sender.bytes_in_flight()<<endl;
+    // cerr<<" _sender.buffer "<< _sender.stream_in().buffer_size()<<endl;
     // cerr<<"----------------------------\n";
     if(seg.header().rst){
         set_error();
@@ -103,32 +106,32 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         case State::SYN_RECEIVED:
             if(seg.header().ack){
                 _state = State::ESTABLISHED;
-                cerr<<"received ack"<<endl;
             }
             break;
         case State::ESTABLISHED:
-            if(_receiver.stream_out().eof()){
-                // cerr<<"还有 "<<_sender.stream_in().buffer_size()<<endl;
-                // cerr<<"eof "<<_sender.stream_in().eof()<<endl;
-                // cerr<<"fly "<<_sender.bytes_in_flight()<<endl;
+            if(_receiver.stream_out().input_ended()){
                 _state = State::CLOSE_WAIT;
                 _linger_after_streams_finish = false;
                 if(!_sender.stream_in().input_ended() && _sender.stream_in().buffer_empty()){
                     _sender.send_empty_segment();
+                    if(!_sender.stream_in().input_ended()){
+                        _sender.segments_out().back().header().fin = true;
+                        _state = State::LAST_ACK;
+                    }
                 }else {
                     _sender.fill_window();
                 }
-                // cerr<<"还有 "<<_sender.stream_in().buffer_size()<<endl;
-                // cerr<<"fly "<<_sender.bytes_in_flight()<<endl;
             }else if(!_sender.stream_in().buffer_empty()){
                 _sender.fill_window();
-            }else if((_sender.stream_in().eof() && _sender.bytes_in_flight()==0)){
+                if( _sender.segments_out().back().header().fin)_state = State::FIN_WAIT1;
+            }else if((_sender.stream_in().input_ended() && _sender.bytes_in_flight()==0)){
                 // 单窗口eof的情况
                 _sender.fill_window();
                 _state = State::FIN_WAIT1;
             }else if(_receiver.should_ack()){
                 _sender.send_empty_segment();
             }
+            
             break;
         case State::FIN_WAIT1:
             if(seg.header().fin){
@@ -141,7 +144,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             }
             break;
         case State::FIN_WAIT2:
-            if(_receiver.stream_out().eof()){
+            if(_receiver.stream_out().input_ended()){
                 _state = State::TIME_WAIT;
                 _sender.send_empty_segment();
             }else {
@@ -174,6 +177,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         default:
             break;
     }
+    // report_state();
     move_to_outer_queue();
 }
 
@@ -198,7 +202,7 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
         set_error();
     }
     move_to_outer_queue();
-    if((_sender.bytes_in_flight()==0 && _sender.stream_in().eof() &&_receiver.stream_out().eof()) && _time_since_last_segment_received>= 10 * _cfg.rt_timeout){
+    if((_sender.bytes_in_flight()==0 && _sender.stream_in().input_ended() &&_receiver.stream_out().input_ended()) && _time_since_last_segment_received>= 10 * _cfg.rt_timeout){
         // option A
         _active = false;
         _state = State::CLOSED;
@@ -269,7 +273,43 @@ void TCPConnection::set_error(){
     _linger_after_streams_finish = false;
 }
 void TCPConnection::report_state(){
-    cerr<<"\033[36mactive："<<_active
+    cerr<<"\033[36m state:";
+    switch (_state) {
+        case State::LISTEN:
+            cerr<<"Listen";
+            break;
+        case State::SYN_SENT:
+            cerr<<"SYN_SENT";
+            break;
+        case State::SYN_RECEIVED:
+            cerr<<"SYN_RECEIVED";
+            break;
+        case State::ESTABLISHED:
+            cerr<<"ESTABLISHED";
+            break;
+        case State::FIN_WAIT1:
+            cerr<<"FIN_WAIT1";
+            break;
+        case State::FIN_WAIT2:
+            cerr<<"FIN_WAIT2";
+            break;
+        case State::CLOSING:
+            cerr<<"CLOSING";
+            break;
+        case State::LAST_ACK:
+            cerr<<"LAST_ACK";
+            break;
+        case State::CLOSE_WAIT:
+            cerr<<"CLOSE_WAIT";
+            break;
+        case State::TIME_WAIT:
+            cerr<<"TIME_WAIT";
+            break;
+        case State::CLOSED:
+            cerr<<"CLOSED";
+            break;
+    }
+    cerr<<"\nactive："<<_active
         <<"\nlinger: "<<_linger_after_streams_finish
         <<"\nreceiver,end:"<<_receiver.stream_out().eof()
         <<"\nsender end:"<<_sender.stream_in().eof()
